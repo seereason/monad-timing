@@ -25,9 +25,13 @@ import Control.Monad.Base          (MonadBase (..))
 import Control.Monad.Catch         (MonadCatch (..), MonadMask (..),
                                     MonadThrow (..))
 import Control.Monad.Cont
-import Control.Monad.Except        (MonadError (..))
+import Control.Monad.Except        (MonadError (..), ExceptT(..))
+import Control.Monad.Identity      (IdentityT(..))
 import Control.Monad.IO.Class      (MonadIO (..))
+import Control.Monad.Reader        (ReaderT(..))
 import Control.Monad.RWS
+import Control.Monad.State         (StateT(..))
+import Control.Monad.Writer        (WriterT(..))
 import Control.Monad.Trans.Control (MonadBaseControl (..))
 import Data.Function
 import Data.List
@@ -38,6 +42,24 @@ import Data.Tree
 class MonadTiming m where
     -- | Time the given computation with the given tag.
     timeGroup :: Tag -> m a -> m a
+
+instance MonadTiming m => MonadTiming (StateT s m) where
+    timeGroup s m = StateT (timeGroup s . runStateT m)
+
+instance MonadTiming m => MonadTiming (ReaderT r m) where
+    timeGroup s m = ReaderT (timeGroup s . runReaderT m)
+
+instance MonadTiming m => MonadTiming (WriterT w m) where
+    timeGroup s m = WriterT (timeGroup s (runWriterT m))
+
+instance MonadTiming m => MonadTiming (RWST r w st m) where
+    timeGroup s m = RWST (\r st -> timeGroup s (runRWST m r st))
+
+instance MonadTiming m => MonadTiming (ExceptT e m) where
+    timeGroup s (ExceptT m) = ExceptT (timeGroup s m)
+
+instance MonadTiming m => MonadTiming (IdentityT m) where
+    timeGroup s (IdentityT m) = IdentityT (timeGroup s m)
 
 -- | A tree of timing events.
 type TimingTree = Tree (Tag, NominalDiffTime)
@@ -63,6 +85,9 @@ execTimingT = fmap snd . runTimingT
 
 liftTimingT :: Functor m => m a -> TimingT m a
 liftTimingT = TimingT . fmap (\ x -> (x, []))
+
+liftTimings :: Functor m => [TimingTree] -> m a -> TimingT m a
+liftTimings timings = TimingT . fmap (\ x -> (x, timings))
 
 instance Functor m => Functor (TimingT m) where
     fmap f (TimingT q) = TimingT (first f <$> q)
