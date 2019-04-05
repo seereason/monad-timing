@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                monad-timing
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Monad transformer for recording timing events
 description:         Monad transformer for recording timing events
 homepage:            https://github.com/pikajude/monad-timing
